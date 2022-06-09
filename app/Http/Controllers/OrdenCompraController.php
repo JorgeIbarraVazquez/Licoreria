@@ -19,7 +19,7 @@ class OrdenCompraController extends Controller
      */
     public function index()
     {
-         
+         //Es un query que trae la informacion de las ordendenes de compra, se utilizan sub querys para la informacion de los productos
         $ordenes_compra = DB::table('orden_compras')
         ->join('proveedors', 'orden_compras.id_proveedor', '=', 'proveedors.id')
         ->select('orden_compras.*','proveedors.nombre_empresa',
@@ -46,6 +46,7 @@ class OrdenCompraController extends Controller
     public function create()
     {
         $prov = Proveedor::all();
+        // cuando se solicita la creacion de una orden se le pasa como paramentro los proveedores para mostrarlos en el select
         return view('orden_compras.create')->with('proveedores',$prov);
     }
 
@@ -57,6 +58,7 @@ class OrdenCompraController extends Controller
      */
     public function store(Request $request)
     {
+        //Para generar una orden de compra primero se guarda en la tabla de orden_compras, la informacion general
         $ordenes = new OrdenCompra();
         $ordenes->folio = $request->get('folio');
         $ordenes->fecha_orden = $request->get('fecha');
@@ -64,7 +66,7 @@ class OrdenCompraController extends Controller
         $ordenes->id_proveedor = $request->get('proveedor');
 
         $ordenes->save();
-
+        //posteriormente se guardan los productos seleccionados en la tabla en la tabla orden_compra_productos
         $productos=$request->get('productos');
         $info=json_decode(trim($productos));
         $ordenes_compra_productos= new OrdenCompraProductos();
@@ -101,6 +103,8 @@ class OrdenCompraController extends Controller
      */
     public function edit($id)
     {
+
+        //para generar la vista de editar, primero se obtine la informacion general de la orden de compra a partir del folio
         $prov = Proveedor::all();
         $ordenes_compraEdit = DB::table('orden_compras')
         ->join('proveedors', 'orden_compras.id_proveedor', '=', 'proveedors.id')
@@ -108,11 +112,11 @@ class OrdenCompraController extends Controller
         ->where("orden_compras.folio", "=", $id)
         ->get();
         
-   
+        //aqui se traen todos los productos que pertenecen al proveedor de la orden
         $results = Producto::where('id_proveedor',$ordenes_compraEdit[0]->id_proveedor)->get();
-       
+        // despiues se obtinen los id de los productos que estan solamente en la orden a editar
         $ordenes_compra_productos= OrdenCompraProductos::where('folio_orden_compra', $ordenes_compraEdit[0]->folio)->pluck('id_producto');
-
+        //y tambien se traen las cantidades del producto que fueron solicitadas en la orden
         $ordenes_compra_productos_cant= OrdenCompraProductos::where('folio_orden_compra', $ordenes_compraEdit[0]->folio)->pluck('cantidad');
         $array=$ordenes_compra_productos->toArray();
         $array_cant= $ordenes_compra_productos_cant->toArray();
@@ -120,11 +124,12 @@ class OrdenCompraController extends Controller
         foreach($results as $pos => $prod){
            
             if(($prod->cantidad)>0){
+                //se valida si el producto estaba previamente en la orden de compra
                 if (in_array($prod->SKU,$array)) {
-                    $checked='checked';
+                    $checked='checked'; // si ya estaba se va a seleciionar
                     $cantidad_orden=$array_cant[$pos];
                 }else{
-                    $checked='';
+                    $checked='';// de lo contrario significa que no esta agregado para esa orden
                     $cantidad_orden=$prod->cantidad;
                 }
                 $options.="<tr>";
@@ -152,6 +157,8 @@ class OrdenCompraController extends Controller
      */
     public function update(Request $request, $id)
     {
+
+        //en esta funcion solo se edita la informacion general de la orden de compra
         $orden = OrdenCompra::where('folio', $id)->first();
         
         $orden->fecha_orden = $request->get('fecha');
@@ -171,18 +178,25 @@ class OrdenCompraController extends Controller
      */
     public function destroy($id)
     {
+
+        //Para eliminar una orden de compra  primero de deben de sacar los productos que estan en esa orden
         $ordenes_compra_productos= OrdenCompraProductos::where('folio_orden_compra', $id)->pluck('id');
+        // esto para primero eliminarlos de la tabla de orden_compra_productos, si no se eliminan se generar un error por que no se puede eliminar mientras existe un campo apuntando a una llave foranea existente
         foreach($ordenes_compra_productos as $prod){
 
             $ordenDelete=OrdenCompraProductos::find($prod);
             $ordenDelete->delete();
         }
+
+        //despues de eliminar los productos ahora si se procede a eliminar la orden de compra
         $orden = OrdenCompra::where('folio', $id)->first();
         $orden->delete();
 
         return redirect('/ordenCompra');
     }
 
+
+    //Esta funcion se utiliza para mostrar los productos que pertenecen a un proveedor en especifico
     public function buscarProductos()
 {
     $id       = request('id');
@@ -210,8 +224,11 @@ class OrdenCompraController extends Controller
 }
 
 
+
 public function editarProd(Request $request)
     {
+
+        //Para editar los productos de la orden de compra, primero se eliminaran los productos de la tabla de orden_compra_productos
         $id       =$request->get('folio');
         $ordenes_compra_productos= OrdenCompraProductos::where('folio_orden_compra', $id)->pluck('id');
         foreach($ordenes_compra_productos as $prod){
@@ -219,7 +236,7 @@ public function editarProd(Request $request)
             $ordenDelete=OrdenCompraProductos::find($prod);
             $ordenDelete->delete();
         }
-
+        //posterioemente se volveran a insertar todos los productos que esten seleccionados en la tabla
         $productos=$request->get('productos');
         $info=json_decode(trim($productos));
         $ordenes_compra_productos= new OrdenCompraProductos();
